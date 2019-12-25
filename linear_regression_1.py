@@ -9,6 +9,9 @@
 # starting with a single stock with symbol SYM, the training data will be
 # (closing price today, closing price tomorrow). 
 
+# Training set: price today
+# Label set: price tomorrow 
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,8 +23,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 # Keep data up to 2018 for training
 break_date = 20180000
 min_date   = 20100000
+folder = "symbols/"
 
-stock = "AAPL"
 
 def processStock(stock_sym):
 	#df = pd.read_csv("ZEUS.txt", index_col=0)
@@ -138,4 +141,8 @@ def processStock(stock_sym):
 	# This suggests that we should perhaps train on the profit rather than the price. 
 	# We will try that later. 
 
-processStock("AAPL")
+stocks = ["AAPL", "ZEUS"]
+
+for sym in stocks:
+	print("------------------ ", sym, " -------------------")
+	processStock(folder + sym)

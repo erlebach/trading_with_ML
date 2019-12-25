@@ -1,17 +1,20 @@
 # Author: Gordon Erlebacher
 
-# Linear_regression_2.py
-# Only difference with linear_regression_1.py is that we will sue 
-# profits as a lable (close today - close yesterday), and actual profit 
-# as a label (close tomorrow - close today)
+# Linear_regression_1.py
+# Create functions and moved plotting to utils.py
+
+# We demonstrate the use of random forest to predict a single stock. 
+# Given the price of today, predict the price of tomorrow. 
 
 # starting with a single stock with symbol SYM, the training data will be
 # (closing price today, closing price tomorrow). 
 
-# notice that processStock has a second argument: the model
+# Training set: price today
+# Label set: price tomorrow 
 
-# training set based on one-day profit, as is label
-# training set based today's price, label is tomorrow's price
+# Starting from linear_regression_1.py
+# Instead of considering 10 years of data, consider "n days" of data, 
+# with "n" being an input variable. 
 
 import pandas as pd
 import numpy as np
@@ -21,71 +24,68 @@ import utils as u
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error, r2_score
 
-# Keep data up to 2018 for training
 
-folder = "symbols/"
-stock = "AAPL"
-stock = "ZEUS"
-
-# Using 1-day profit to predict is not the way to go. 
+# Given the break date, and "n", compute min_date = break_date->getDays() - n
+# So I need getDays given yyyymmdd day format (integer)
+# The date is in the format integer yyyymmdd, month and date count from zero
 
 #----------------------------------------------------------------------
-def getTrainingLabelsTest(df):
-    # parenthesis and & are required for compound conditional
-    break_date = 20180000
-    min_date   = 20100000
-    train_df = df.loc[(df.index <= break_date) & (df.index >= min_date)]
-    test_df  = df.loc[df.index  >  break_date]
-
-    # training set based on one-day profit
-    # Could experiment with "n-day profit". Create a function for this. 
-    # labels are based on the profit the next day
-
-    x_train = train_df.c.values[1:-1] - train_df.c.values[0:-2]
-    y_train = train_df.c.values[2:]   - train_df.c.values[1:-1]
-
-    print(train_df.c.values[1:-1].shape, train_df.c.values[0:-2].shape)
-    print("x_train: ", x_train.shape)
-    print("y_train: ", y_train.shape)
-
-    x_test = test_df.c.values[1:-1] - test_df.c.values[0:-2]
-    y_test = test_df.c.values[2:]   - test_df.c.values[1:-1]
-
-    return x_train, y_train, x_test, y_test
-#----------------------------------------------------------------------
 
 
-def processStock(stock_sym, model):
+# break_date: separates training from label data
+# nb_days: nb of days to use for the training data (could go from 1 to 250)
+#    So I would use at most one year of training data
+
+def processStock(stock_sym, break_date, nb_days):
     df = pd.read_csv(stock_sym + ".txt", index_col=0)
 
     # First, we will try a linear regression on a single stock using sklearn
 
-    x_train, y_train, x_test, y_test = getTrainingLabelsTest(df)
+    # parenthesis and & are required for compound conditional
+    min_date = u.addDays(break_date, -30)
+    print("break_date= ", break_date)
+    print("min_date= ", min_date)
+    train_df = df.loc[(df.index <= break_date) & (df.index >= min_date)]
+    test_df  = df.loc[df.index  >  break_date]
+
+    # training set based on close prices
+    # labels are based on the close prices on the next day
+
+    x_train = train_df.c.values[0:-1]
+    y_train = train_df.c.values[1:]
+    #print(x_train.shape, x_train.shape)
+    #print(x_train[0:10], y_train[0:10])
+
+    x_test = test_df.c.values[0:-1]
+    y_test = test_df.c.values[1:]
+    #print(y_test.shape, y_test.shape)
 
     # I now have my training and labels as 1D arrays
 
+    # Create linear regression object
+    regr = linear_model.LinearRegression()
 
     # Train the model
     # Need 2D arrays. The reshape is necessary if there is only a single feature (2nd dimension)
-    model.fit(x_train.reshape(-1,1), y_train.reshape(-1,1))
+    regr.fit(x_train.reshape(-1,1), y_train.reshape(-1,1))
 
     # Make predictions using the testing set
-    y_pred = model.predict(x_test.reshape(-1,1)).reshape(-1)
+    y_pred = regr.predict(x_test.reshape(-1,1)).reshape(-1)
 
     # The coefficients
-	# These only exist for linear regression. How to generalize
-    print('Coefficients: \n', model.coef_)
-    print('Intercept: \n', model.intercept_)
+    print('Coefficients: \n', regr.coef_)
+    print('Intercept: \n', regr.intercept_)
 
     # The mean squared error
     print('Mean squared error: %.2f' % mean_squared_error(y_test, y_pred))
 
     # The coefficient of determination: 1 is perfect prediction
-    # Might only work for linear regression (not sure)
     print('Coefficient of determination: %.2f'
           % r2_score(y_test, y_pred))
 
+
     u.plotPredVsRealPrice(stock_sym, x_test, y_test, y_pred)
+
 
     # The plot looks nice and linear (for AAPL). However, how does that translate to profit. Assume
     # that that Monday, before the market opens, I run this code and find that te stock will go up
@@ -95,8 +95,11 @@ def processStock(stock_sym, model):
     # sent. So I am estimating an idea profit. So on days that I predict the market goes up, I purchase 100 
     # shares, and sell at close to make or lose money. Let us see how lineargression does. 
 
-    real_profit = y_test   # <<<< Notice difference with previous code
-    pred_profit = y_pred
+    #print("x_test, ", x_test.shape)
+    #print("y_test, ", y_test.shape)
+    #print("y_pred, ", y_pred.shape)
+    real_profit = y_test - x_test
+    pred_profit = y_pred - x_test
 
     #print(real_profit.shape, pred_profit.shape)
 
@@ -104,6 +107,7 @@ def processStock(stock_sym, model):
     # If predictions are correct, I'd expect all the points to be in the 1st and 4th quadrants. 
     # That is not the case. 
     u.plotRealVsPredProfit(stock_sym, real_profit, pred_profit)
+
 
     # Strategy: On the days where pred_prof > 0, buy the stock. Sell the next day. So the actual profit
     # is real_profit
@@ -144,10 +148,14 @@ def processStock(stock_sym, model):
     # This suggests that we should perhaps train on the profit rather than the price. 
     # We will try that later. 
 
-# Create linear regression object
-model = linear_model.LinearRegression()
+stocks = ["AAPL", "ZEUS"]
 
-stocks = ['AAPL', 'ZEUS']
+# Keep data up to 2018 for training
+break_date = 20180000
+folder = "symbols/"
+nb_days = [1, 25, 50, 100, 200, 400]
+
 for sym in stocks:
-	print("----------- Stock: ", sym, " ---------------")
-	processStock(folder + sym, model)
+    for nd in nb_days:
+        print("------------------ ", sym, nd, " -------------------")
+        processStock(folder + sym, break_date, nd)
