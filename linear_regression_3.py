@@ -130,6 +130,7 @@ def processStock(stock_sym, break_date, nb_days):
     total_pred_profit = pred_profit.sum()
     print("total_real_profit= ", total_real_profit)
     print("total_pred_profit= ", total_pred_profit)
+
     # For AAPL, the total real profit is 4x larger than total pred profit. That is strange. 
     #   I do not understand how this is possible. The real profit is pos and neg and the pred
     #   is always positive. Therefore, the real profit should cancel itself out. 
@@ -159,3 +160,5 @@ for sym in stocks:
     for nd in nb_days:
         print("------------------ ", sym, nd, " -------------------")
         processStock(folder + sym, break_date, nd)
+
+
