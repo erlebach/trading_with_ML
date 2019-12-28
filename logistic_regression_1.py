@@ -20,12 +20,10 @@
 # In the future, each choice would by m days of data previous to "today". 
 # Again, this is not coded.
 
-# Starting from linear_regression_3.py
-# Add volume as a second feature
-
 # Starting from linear_regression_4.py
-# hand random forest and SVM
-# I will try logistic regression as well 
+# Implement random forest, SVM and logistic regression
+# training data: price + vol. 
+# label: is there a profit the next day
 
 import pandas as pd
 import numpy as np
@@ -142,6 +140,7 @@ def processStock(stock_sym, break_date, nb_days, n_features):
     print("total_pred_profit= ", total_pred_profit)
 
 stocks = ["AAPL", "ZEUS"]
+stocks = ["ZEUS", "AAPL"]
 
 # Keep data up to 2018 for training
 break_date = 20180000
@@ -153,5 +152,8 @@ n_features = 2
 for sym in stocks:
     for ndays in nb_days:
         print("---------------- %s, %d days -----------------" % (sym, ndays))
+        # Might be better to input a list of features (string): ['c','vol']
+		# So all features would be precomputed or be defined via function. 
+		# Or the input could be a dictionary 'vol': getVolume, 'rsi':getRSI, ..
         processStock(folder + sym, break_date, -ndays, n_features)
 
