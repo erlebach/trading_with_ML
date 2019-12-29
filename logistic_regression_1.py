@@ -28,11 +28,15 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import utils as u
 from IPython import embed
 
 from sklearn import linear_model
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import confusion_matrix, classification_report
 
 
 # Given the break date, and "n", compute min_date = break_date->getDays() - n
@@ -40,18 +44,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 # The date is in the format integer yyyymmdd, month and date count from zero
 
 #----------------------------------------------------------------------
-
-
-# break_date: separates training from label data
-# nb_days: nb of days to use for the training data (could go from 1 to 250)
-#    So I would use at most one year of training data
-
-def processStock(stock_sym, break_date, nb_days, n_features):
-    if (n_features == 1):
-        print("cannot handle a single feature. Exit")
-        embed()
-        quit()
-
+# This routine is different for each experiment
+def getTrainTest(stock_sym, break_date, nb_days):
     df = pd.read_csv(stock_sym + ".txt", index_col=0)
 
     # First, we will try a linear regression on a single stock using sklearn
@@ -66,66 +60,90 @@ def processStock(stock_sym, break_date, nb_days, n_features):
     test_df  = df.loc[df.index  >  break_date]
 
     # training set based on close prices
-    # labels are based on the close prices on the next day
+    # labels are 1 if there is profit, otherwise zero
 
+    # Training features: close price, volume
+    # Labels: tomorrow's price
     cols = ['c','vol']   # cleans up code, and avoids repetition
-    x_train = train_df[cols].values[0:-1]
-    # Profit. Use a condition, converted to a float (0., 1.). Scalar. 
-    y_train = ((train_df['c'].values[1:] - train_df['c'].values[0:-1]) > 0).astype(np.float)
-    print("x_train: ", x_train.shape)
-    print("y_train: ", x_train.shape)
+    x_train = train_df[cols].values[0:-1] # returns numpy array [n,2]
+    c = train_df['c'].values
 
-    x_test = test_df[cols].values[0:-1]
-    y_test = ((test_df['c'].values[1:] - test_df['c'].values[0:-1]) > 0).astype(np.float)
+    # False -> 0. True -> 1.
+    # y_train has shape (n,)  (as opposed to (n)
+    y_train = c[1:] - c[0:-1] > 0
+    y_train = y_train.astype(float)
+
+    x_test = test_df[cols].values[0:-1] # returns numpy array [n,2]
+    c = test_df['c'].values
+    y_test = c[1:] - c[:-1] > 0
+    y_test = y_test.astype(float)
+    print(x_train.shape, y_train.shape, x_test.shape, y_test.shape)
+
+    return x_train, y_train, x_test, y_test
+#----------------------------------------------------------------------
+
+# break_date: separates training from label data
+# nb_days: nb of days to use for the training data (could go from 1 to 250)
+#    So I would use at most one year of training data
+
+def processStock(stock_sym, break_date, nb_days, n_features):
+    if (n_features == 1):
+        print("cannot handle a single feature. Exit")
+        embed()
+        quit()
+
+    x_train, y_train, x_test, y_test = getTrainTest(stock_sym, break_date, nb_days)
 
     # Create linear regression object
-    #regr = linear_model.LinearRegression()
-    regr = linear_model.LogisticRegression(C=1e5)  # What is C?
+    # ml is more generic. Allows for generalization later on
+    # Loop over some parameters
+    #for c in [.001, .01, .1, 1,10,100,1000]: 
+    for c in [100]:
+        print("********* C = %d *********" % c)
+        #ml = linear_model.LogisticRegression(C=c)  # What is C?
+        #ml = DecisionTreeClassifier(criterion='entropy')  # What is C?
+        ml = RandomForestClassifier(n_estimators=100, criterion='entropy')  # What is C?
 
-    # Train the model
-    # Need 2D arrays. The reshape is necessary if there is only a single feature (2nd dimension)
-    #regr.fit(x_train.reshape(-1,1), y_train.reshape(-1,1))
+        # If so, I must do a transpose on the data
+        #print("x_train, y_train: ", x_train.shape, y_train.shape)
+        print("x_train: ", x_train[0:30])
+        print("y_train: ", y_train[0:30])
+        ml.fit(x_train, y_train)
 
-    # *** The features are in the last slot of the arrays / tensors
+        # Make predictions using the testing set
+        y_pred = ml.predict(x_test) #.reshape(-1)
+        #  <<<<<< >>>>>>>
+        # For AAPL and ZEUS, confusion matrix independent of C. Why? 
+        #  <<<<<< >>>>>>>
+        print("y_pred: ", y_pred.sum(), y_pred[0:30])
+        print("y_test: ", y_test.sum(), y_test[0:30])
 
-    # Example with Logistic function: 
-    # https://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic.html#sphx-glr-auto-examples-linear-model-plot-logistic-py
-
-    # What is the first column? The number of features? 
-    # If so, I must do a transpose on the data
-    print("x_train, y_train: ", x_train.shape, y_train.shape)
-    regr.fit(x_train, y_train)
-
-    # Make predictions using the testing set
-    print("x_test: ", x_test.shape)
-    y_pred = regr.predict(x_test) #.reshape(-1)
-
-    # The coefficients (NOT SURE WHAT THESE MEAN for logistic regression)
-    print('Coefficients: \n', regr.coef_)
-    print('Intercept: \n', regr.intercept_)
-
+        # first argument must be true, 2nd the predicted values
+        print(confusion_matrix(y_test, y_pred))
+        print(classification_report(y_test, y_pred))
+        quit()
+    
     # The mean squared error
     # make sure that y_test and y_pred have same shape)
-    print("y_test, y_pred: ", y_test.shape, y_pred.shape)
+    print("x_test, y_test, y_pred: ", x_test.shape, y_test.shape, y_pred.shape)
+    print("x_train, y_train: ", x_train.shape, y_train.shape)
     print('Mean squared error: %.2f' % mean_squared_error(y_test, y_pred))
+    print("ALL CORRECT")
 
     # The coefficient of determination: 1 is perfect prediction
     print('Coefficient of determination: %.2f'
           % r2_score(y_test, y_pred))
 
-    #print("x_test, ", x_test.shape)
-    #print("y_test, ", y_test.shape)
-    #print("y_pred, ", y_pred.shape)
-
-    real_profit = y_test - x_test   # <<< ERROR
-    quit()
-    pred_profit = y_pred - x_test
 
     # Strategy: On the days where pred_prof > 0, buy the stock. Sell the next day. So the actual profit
     # is real_profit
 
+    pred_profit = y_pred
+    print("pred_profit = ", pred_profit)
     profit = pred_profit > 0
+    print("profit = ", profit.shape, profit)
     real_profit = real_profit[profit]
+    print("real_profit.shape= ", real_profit.shape)
 
     print("x_test= ", x_test[0:10])
     print("y_test= ", y_test[0:10])
@@ -139,21 +157,25 @@ def processStock(stock_sym, break_date, nb_days, n_features):
     print("total_real_profit= ", total_real_profit)
     print("total_pred_profit= ", total_pred_profit)
 
-stocks = ["AAPL", "ZEUS"]
 stocks = ["ZEUS", "AAPL"]
+stocks = ["AAPL", "ZEUS"]
 
 # Keep data up to 2018 for training
 break_date = 20180000
 folder = "symbols/"
 nb_days = [1, 25, 50, 100, 200, 400]
-nb_days = [50]
+nb_days = [500]   # business days, not trading days
+# Another way of working with nb_days is to use iloc to find the starting
+# date to use in training data. Then we are working with trading days. 
+# Leave to future work. 
+
 n_features = 2
 
 for sym in stocks:
     for ndays in nb_days:
         print("---------------- %s, %d days -----------------" % (sym, ndays))
         # Might be better to input a list of features (string): ['c','vol']
-		# So all features would be precomputed or be defined via function. 
-		# Or the input could be a dictionary 'vol': getVolume, 'rsi':getRSI, ..
+        # So all features would be precomputed or be defined via function. 
+        # Or the input could be a dictionary 'vol': getVolume, 'rsi':getRSI, ..
         processStock(folder + sym, break_date, -ndays, n_features)
 
