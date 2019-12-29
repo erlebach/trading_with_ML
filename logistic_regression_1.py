@@ -65,6 +65,10 @@ def getTrainTest(stock_sym, break_date, nb_days):
     # Training features: close price, volume
     # Labels: tomorrow's price
     cols = ['c','vol']   # cleans up code, and avoids repetition
+
+	# Use 5 features on current day
+    #cols = ['c','h','l','o','vol']   # cleans up code, and avoids repetition
+
     x_train = train_df[cols].values[0:-1] # returns numpy array [n,2]
     c = train_df['c'].values
 
@@ -77,6 +81,7 @@ def getTrainTest(stock_sym, break_date, nb_days):
     c = test_df['c'].values
     y_test = c[1:] - c[:-1] > 0
     y_test = y_test.astype(float)
+    print("x_train.shape, y_train.shape, x_test.shape, y_test.shape")
     print(x_train.shape, y_train.shape, x_test.shape, y_test.shape)
 
     return x_train, y_train, x_test, y_test
@@ -117,6 +122,8 @@ def processStock(stock_sym, break_date, nb_days, n_features):
         #  <<<<<< >>>>>>>
         print("y_pred: ", y_pred.sum(), y_pred[0:30])
         print("y_test: ", y_test.sum(), y_test[0:30])
+        print("x_train.shape: ", x_train.shape)
+        print("x_test.shape: ",  x_test.shape)
 
         # first argument must be true, 2nd the predicted values
         print(confusion_matrix(y_test, y_pred))
@@ -164,7 +171,7 @@ stocks = ["AAPL", "ZEUS"]
 break_date = 20180000
 folder = "symbols/"
 nb_days = [1, 25, 50, 100, 200, 400]
-nb_days = [500]   # business days, not trading days
+nb_days = [1000]   # business days, not trading days
 # Another way of working with nb_days is to use iloc to find the starting
 # date to use in training data. Then we are working with trading days. 
 # Leave to future work. 
