@@ -58,11 +58,15 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
     # Training features: close price, volume
     # Labels: tomorrow's price
     # Make sure that 'c' is first
+
+    # Make sure that all features are in cols for the rest of the program to work properly!!
+
     #cols = ['c','vol']   # cleans up code, and avoids repetition
     #cols = ['c','o']   # cleans up code, and avoids repetition
-    #cols = ['c','o','l','h']   # cleans up code, and avoids repetition
-    #cols = ['c','o','l','h','vol']   # cleans up code, and avoids repetition
+    cols = ['c','o','l','h','vol']   # cleans up code, and avoids repetition
     cols = ['c']   # cleans up code, and avoids repetition
+    cols = ['c','o','l','h']   # cleans up code, and avoids repetition
+    #cols = ['c', 'vol']   # cleans up code, and avoids repetition
 
     # days:  -2       -1          0
     #             yesterday     today
@@ -73,12 +77,17 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
     # Formula valid for any value of feature_days
     lst = []
     for n in range(nb_feature_days):  # [0,1,2]
-        lst.append(train_df[cols].values[n:-nb_feature_days+n])
+        m = (nb_feature_days - 1) - n
+        # today should be the first list of features
+        lst.append(train_df[cols].values[m:-nb_feature_days+m])
     x_train = np.hstack(lst) # stack along columns
 
     # Training Label: Predict closing price the next day
     y_train = train_df['c'].values[nb_feature_days:]
-    train_dates = train_df.index.values[nb_feature_days:]
+    train_dates = train_df.index.values[nb_feature_days-1:-1]
+    print("train_dates: ", train_dates[0:5])
+    print("x_train: ", x_train[0:5,0]) # today + 4 additional days
+    print("y_train: ", y_train[0:5]) # tomorrow + 4 additional days
 
     """
     # Manual creation of formula
@@ -91,12 +100,18 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
     
     lst = []
     for n in range(nb_feature_days):
-        lst.append(test_df[cols].values[n:-nb_feature_days+n])
+        m = (nb_feature_days - 1) - n
+        # today should be the first list of features
+        lst.append(test_df[cols].values[m:-nb_feature_days+m])
     x_test = np.hstack(lst) # stack along columns
 
     # Test Label
     y_test = test_df['c'].values[nb_feature_days:]
-    test_dates = test_df.index[nb_feature_days:]
+    test_dates = test_df.index[nb_feature_days-1:-1]
+
+    print("test_dates: ", test_dates[0:5])
+    print("x_test: ", x_test[0:5,0]) # today + 4 additional days
+    print("y_test: ", y_test[0:5]) # tomorrow + 4 additional days
 
     n_features = x_train.shape[-1]
 
@@ -112,7 +127,6 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
 
     print(x_train.shape, y_train.shape)
     print(x_test.shape, y_test.shape)
-    #quit()
     return train_dates, test_dates, x_train, y_train, x_test, y_test, feature_names
 #----------------------------------------------------------------------
 
@@ -137,6 +151,10 @@ def processStock(stock_sym, break_date, nb_train_days, nb_feature_days, profit_t
     # Make predictions using the testing set
     #print("x_test: ", x_test.shape)
     y_pred = regr.predict(x_test) #.reshape(-1)
+
+    nb_features_per_day = x_train.shape[-1] / nb_feature_days
+    print("shape: ", x_train.shape)
+    print("nb_features_per_day= ", nb_features_per_day)
 
 
     # The coefficients
@@ -190,7 +208,7 @@ def processStock(stock_sym, break_date, nb_train_days, nb_feature_days, profit_t
     profit = 100.*(pred_profit / x_test[:,0]) > profit_thresh
     real_profit = real_profit[profit]
     pred_profit = pred_profit[profit]
-    profit_dates = test_dates.values[profit]
+    profit_dates = test_dates[profit]
 
     #print("real_profit.shape: ", real_profit.shape)
     #print("pred_profit.shape: ", pred_profit.shape)
@@ -198,10 +216,14 @@ def processStock(stock_sym, break_date, nb_train_days, nb_feature_days, profit_t
     #print("x_test= ", x_test[0:10])
     #print("y_test= ", y_test[0:10])
     #print("y_pred= ", y_pred[0:10])
+    print(x_test.shape, real_profit.shape, pred_profit.shape, profit_dates.shape)
+    print("x_test: ", x_test[0:10])
+    print("test_dates: ", test_dates.values[0:10])
+    print("Profit_shape: ", profit.shape) # 1D array
     print("real_profit= ", real_profit[0:10])
     print("pred_profit= ", pred_profit[0:10])
     print("profit dates= ", profit_dates[0:10])
-    print("close[profit_dates]= ", x_test[profit])
+    #print("close[profit_dates]= ", x_test[profit,0])
 
     # Sum up the real profit over the test data
     total_real_profit = real_profit.sum()
@@ -226,7 +248,7 @@ nb_train_days = [1000]
 # nb of days to use for the features
 # the same features are used for each day
 nb_feature_days = 5
-profit_thresh   = 10  # percentage profit below which I do not enter the trade
+profit_thresh   = 0  # percentage profit below which I do not enter the trade
 
 for sym in stocks:
     for ndays in nb_train_days:
