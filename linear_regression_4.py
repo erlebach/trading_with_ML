@@ -37,7 +37,7 @@ from sklearn.feature_selection import f_regression, mutual_info_regression, f_re
 
 #----------------------------------------------------------------------
 # This routine is different for each experiment
-def getTrainTest(stock_sym, break_date, nb_train_days):
+def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
     df = pd.read_csv(stock_sym + ".txt", index_col=0)
 
     # First, we will try a linear regression on a single stock using sklearn
@@ -51,9 +51,6 @@ def getTrainTest(stock_sym, break_date, nb_train_days):
     train_df = df.loc[(df.index <= break_date) & (df.index >= min_date)]
     test_df  = df.loc[df.index  >  break_date]
 
-    # nb of days to use for the features
-    # the same features are used for each day
-    nb_feature_days = 5
 
     # training set based on close prices
     # labels are based on the close prices on the next day
@@ -62,12 +59,10 @@ def getTrainTest(stock_sym, break_date, nb_train_days):
     # Labels: tomorrow's price
     # Make sure that 'c' is first
     #cols = ['c','vol']   # cleans up code, and avoids repetition
-    cols = ['c','o']   # cleans up code, and avoids repetition
-    cols = ['c','o','l','h']   # cleans up code, and avoids repetition
-    cols = ['c','o','l','h','vol']   # cleans up code, and avoids repetition
+    #cols = ['c','o']   # cleans up code, and avoids repetition
+    #cols = ['c','o','l','h']   # cleans up code, and avoids repetition
+    #cols = ['c','o','l','h','vol']   # cleans up code, and avoids repetition
     cols = ['c']   # cleans up code, and avoids repetition
-
-    x_train = train_df[cols].values[0:-1]
 
     # days:  -2       -1          0
     #             yesterday     today
@@ -81,6 +76,10 @@ def getTrainTest(stock_sym, break_date, nb_train_days):
         lst.append(train_df[cols].values[n:-nb_feature_days+n])
     x_train = np.hstack(lst) # stack along columns
 
+    # Training Label: Predict closing price the next day
+    y_train = train_df['c'].values[nb_feature_days:]
+    train_dates = train_df.index.values[nb_feature_days:]
+
     """
     # Manual creation of formula
     x_train_1 = train_df[cols].values[0:-3]
@@ -88,39 +87,43 @@ def getTrainTest(stock_sym, break_date, nb_train_days):
     x_train_3 = train_df[cols].values[2:-1]
     x_train = np.hstack([x_train_1, x_train_2, x_train_3])  # stack along columns
     print(x_train.shape)
-	"""
+    """
     
-
-    # Predict closing price the next day
-    y_train = train_df['c'].values[nb_feature_days:]
-
     lst = []
     for n in range(nb_feature_days):
         lst.append(test_df[cols].values[n:-nb_feature_days+n])
     x_test = np.hstack(lst) # stack along columns
+
+    # Test Label
     y_test = test_df['c'].values[nb_feature_days:]
+    test_dates = test_df.index[nb_feature_days:]
 
     n_features = x_train.shape[-1]
 
+    """
     if (n_features == 1):
         print("cannot handle a single feature. Exit")
         embed()
         quit()
+    """
 
     feature_names = cols
     target = 'price'
 
     print(x_train.shape, y_train.shape)
     print(x_test.shape, y_test.shape)
-    return x_train, y_train, x_test, y_test, feature_names
+    #quit()
+    return train_dates, test_dates, x_train, y_train, x_test, y_test, feature_names
 #----------------------------------------------------------------------
 
 # break_date: separates training from label data
 # nb_train_days: nb of days to use for the training data (could go from 1 to 250) (pos or neg)
 #    So I would use at most one year of training data
 
-def processStock(stock_sym, break_date, nb_train_days):
-    x_train, y_train, x_test, y_test, feature_names = getTrainTest(stock_sym, break_date, nb_train_days)
+def processStock(stock_sym, break_date, nb_train_days, nb_feature_days, profit_thresh):
+
+    train_dates, test_dates, x_train, y_train, x_test, y_test, feature_names =  \
+            getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days)
 
     # Create linear regression object
     regr = linear_model.LinearRegression()
@@ -182,17 +185,23 @@ def processStock(stock_sym, break_date, nb_train_days):
     print("total_pred_profit= ", total_pred_profit)
 
     # Only count profit on days where the predicted profit is positive
-    profit = pred_profit > 0
+    print(pred_profit.shape)
+    print(x_test.shape)
+    profit = 100.*(pred_profit / x_test[:,0]) > profit_thresh
     real_profit = real_profit[profit]
     pred_profit = pred_profit[profit]
-    print("real_profit.shape: ", real_profit.shape)
-    print("pred_profit.shape: ", pred_profit.shape)
+    profit_dates = test_dates.values[profit]
 
-    print("x_test= ", x_test[0:10])
-    print("y_test= ", y_test[0:10])
-    print("y_pred= ", y_pred[0:10])
+    #print("real_profit.shape: ", real_profit.shape)
+    #print("pred_profit.shape: ", pred_profit.shape)
+
+    #print("x_test= ", x_test[0:10])
+    #print("y_test= ", y_test[0:10])
+    #print("y_pred= ", y_pred[0:10])
     print("real_profit= ", real_profit[0:10])
     print("pred_profit= ", pred_profit[0:10])
+    print("profit dates= ", profit_dates[0:10])
+    print("close[profit_dates]= ", x_test[profit])
 
     # Sum up the real profit over the test data
     total_real_profit = real_profit.sum()
@@ -203,10 +212,10 @@ def processStock(stock_sym, break_date, nb_train_days):
 
 #----------------------------------------------------------------------
 stocks = ["AAPL", "ZEUS"]
-stocks = ["INDY"]
 stocks = ["ZEUS"]
-stocks = ["AAPL"]
 stocks = ["ZBRA"]
+stocks = ["INDY"]
+stocks = ["AAPL"]
 
 # Keep data up to 2018 for training
 break_date = 20180000
@@ -214,8 +223,14 @@ folder = "symbols/"
 nb_train_days = [1, 25, 50, 100, 200, 400]
 nb_train_days = [1000]
 
+# nb of days to use for the features
+# the same features are used for each day
+nb_feature_days = 5
+profit_thresh   = 10  # percentage profit below which I do not enter the trade
+
 for sym in stocks:
     for ndays in nb_train_days:
         print("---------------- %s, %d days -----------------" % (sym, ndays))
-        processStock(folder + sym, break_date, -ndays)
+        processStock(folder + sym, break_date, -ndays, nb_feature_days, profit_thresh)
+
 
