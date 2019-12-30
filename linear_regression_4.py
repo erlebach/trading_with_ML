@@ -37,7 +37,9 @@ from sklearn.feature_selection import f_regression, mutual_info_regression, f_re
 
 #----------------------------------------------------------------------
 # This routine is different for each experiment
-def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
+def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days, wait_days):
+    # wait_days: how many days in the future to wait before measuring profit: [1,-]
+
     df = pd.read_csv(stock_sym + ".txt", index_col=0)
 
     # First, we will try a linear regression on a single stock using sklearn
@@ -72,19 +74,27 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
     #             yesterday     today
     # Given an array [0,1,2,3,..., n-2, n-1]
     # Assume that nb_feature_days = 3
-    # Possible training sets: [0, 1, 2] -> 3, [1, 2, 3] -> 4, [n-4, n-3, n-2] -> n-1
+	# wait_days = 3
+    # Possible training sets: [0, 1, 2] -> 5, [1, 2, 3] -> 6, [n-4, n-3, n-2] -> n-3
 
     # Formula valid for any value of feature_days
     lst = []
     for n in range(nb_feature_days):  # [0,1,2]
-        m = (nb_feature_days - 1) - n
+        m = (nb_feature_days - 1) - n   # m = nb_features-1 --> 0
         # today should be the first list of features
-        lst.append(train_df[cols].values[m:-nb_feature_days+m])
+        print("bounds: ", m, -nb_feature_days+m)
+        xx = train_df[cols].values[m:-nb_feature_days+m + 1-wait_days]
+        print("xx shape: ", xx.shape)
+        lst.append(train_df[cols].values[m:-nb_feature_days+m + 1-wait_days])
     x_train = np.hstack(lst) # stack along columns
 
     # Training Label: Predict closing price the next day
-    y_train = train_df['c'].values[nb_feature_days:]
-    train_dates = train_df.index.values[nb_feature_days-1:-1]
+    print("y bnd: ", nb_feature_days-1+wait_days, ",:")
+    y_train = train_df['c'].values[nb_feature_days-1+wait_days:]
+    print("x_train.shape: ", x_train.shape)
+    print("y_train.shape: ", y_train.shape)
+    train_dates = train_df.index.values[nb_feature_days-1:-wait_days]
+    print("train_dates shape: ", train_dates.shape)
     print("train_dates: ", train_dates[0:5])
     print("x_train: ", x_train[0:5,0]) # today + 4 additional days
     print("y_train: ", y_train[0:5]) # tomorrow + 4 additional days
@@ -102,16 +112,20 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
     for n in range(nb_feature_days):
         m = (nb_feature_days - 1) - n
         # today should be the first list of features
-        lst.append(test_df[cols].values[m:-nb_feature_days+m])
+        lst.append(test_df[cols].values[m:-nb_feature_days+m + 1-wait_days])
     x_test = np.hstack(lst) # stack along columns
 
     # Test Label
-    y_test = test_df['c'].values[nb_feature_days:]
-    test_dates = test_df.index[nb_feature_days-1:-1]
+    y_test = test_df['c'].values[nb_feature_days-1+wait_days:]
+    test_dates = test_df.index[nb_feature_days-1:-wait_days]
 
+    print("x_test shape: ", x_test.shape)
+    print("y_test shape: ", y_test.shape)
+    print("test_dates shape: ", test_dates.shape)
     print("test_dates: ", test_dates[0:5])
     print("x_test: ", x_test[0:5,0]) # today + 4 additional days
     print("y_test: ", y_test[0:5]) # tomorrow + 4 additional days
+    #quit()
 
     n_features = x_train.shape[-1]
 
@@ -134,10 +148,10 @@ def getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days):
 # nb_train_days: nb of days to use for the training data (could go from 1 to 250) (pos or neg)
 #    So I would use at most one year of training data
 
-def processStock(stock_sym, break_date, nb_train_days, nb_feature_days, profit_thresh):
+def processStock(stock_sym, break_date, nb_train_days, nb_feature_days, wait_days, profit_thresh):
 
     train_dates, test_dates, x_train, y_train, x_test, y_test, feature_names =  \
-            getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days)
+            getTrainTest(stock_sym, break_date, nb_train_days, nb_feature_days, wait_days)
 
     # Create linear regression object
     regr = linear_model.LinearRegression()
@@ -249,10 +263,11 @@ nb_train_days = [1000]
 # the same features are used for each day
 nb_feature_days = 5
 profit_thresh   = 0  # percentage profit below which I do not enter the trade
+wait_days = 150 # how many days in the future to measure the profit 
 
 for sym in stocks:
     for ndays in nb_train_days:
         print("---------------- %s, %d days -----------------" % (sym, ndays))
-        processStock(folder + sym, break_date, -ndays, nb_feature_days, profit_thresh)
+        processStock(folder + sym, break_date, -ndays, nb_feature_days, wait_days, profit_thresh)
 
 
