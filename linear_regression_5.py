@@ -40,7 +40,7 @@ from sklearn.feature_selection import f_regression, mutual_info_regression, f_re
 # The date is in the format integer yyyymmdd, month and date count from zero
 
 class Trading:
-	#---------------------------
+    #---------------------------
     def __init__(self, folder, break_date, nb_train_days, nb_feature_days, wait_days, profit_thresh):
         self.folder = folder
         self.break_date = break_date
@@ -51,20 +51,27 @@ class Trading:
         pass
 
 # This routine is different for each experiment
-	#---------------------------
+    #---------------------------
     def getTrainTest(self, stock_sym):
         # wait_days: how many days in the future to wait before measuring profit: [1,-]
         df = pd.read_csv(self.folder+stock_sym + ".txt", index_col=0)
         self.sym = stock_sym # <<<<<<
 
+        break_date_record = df.loc[self.break_date]
+        iloc_break_date = df.index.get_loc(self.break_date)
+        rec = df.iloc[iloc_break_date-self.nb_train_days]
+        min_date = int(rec.name)
+
         # parenthesis and & are required for compound conditional
-        min_date = u.addDays(self.break_date, self.nb_train_days)
+        #min_date = u.addDays(self.break_date, self.nb_train_days)
         print("break_date= ", break_date)
         print("min_date= ", min_date)
         print("nb_train_days= ", nb_train_days)
 
         train_df = df.loc[(df.index <= break_date) & (df.index >= min_date)]
         test_df  = df.loc[df.index  >  break_date]
+        print("train_df.shape: ", train_df.shape)
+        print("test_df.shape: ", test_df.shape)
 
         # training set based on close prices
         # labels are based on the close prices on the next day
@@ -121,6 +128,9 @@ class Trading:
         # Test Label
         self.y_test = test_df['c'].values[nb_feature_days-1+wait_days:]
         self.test_dates = test_df.index[nb_feature_days-1:-wait_days]
+
+        print("nb train_dates: ", len(self.train_dates))
+        print("nb test_dates: ", len(self.test_dates))
     
         n_features = self.x_train.shape[-1]
     
@@ -156,45 +166,32 @@ class Trading:
         # make sure that y_test and y_pred have same shape)
         # https://scikit-learn.org/stable/modules/feature_selection.html
 
-        self.printMetrics()
+        #self.printMetrics()
         u.plotPredVsRealPrice(self.sym, self.x_test[:,0], self.y_test, self.y_pred)
         self.computeProfit()
 
-	#---------------------------
+    #---------------------------
     def computeProfit(self):
-        print("x_test.shape= ", self.x_test.shape)
-        print("y_test.shape= ", self.y_test.shape)
-
         real_profit = self.y_test - self.x_test[:,0]
-        print("real_profit.shape: ", real_profit.shape)
         pred_profit = self.y_pred - self.x_test[:,0]
-        print("pred_profit.shape: ", pred_profit.shape)
     
         # Plot outputs
         u.plotRealVsPredProfit(self.sym, real_profit, pred_profit)
     
-        total_real_profit = real_profit.sum()
-        total_pred_profit = pred_profit.sum()
+        all_days_total_real_profit = real_profit.sum()
+        all_days_total_pred_profit = pred_profit.sum()
         print("***** count all the days ****")
-        print("total_real_profit= ", total_real_profit)
-        print("total_pred_profit= ", total_pred_profit)
+        print("total_real_profit= ", all_days_total_real_profit)
+        print("total_pred_profit= ", all_days_total_pred_profit)
     
         # Only count profit on days where the predicted profit is positive
-        print(pred_profit.shape)
-        print(self.x_test.shape)
+        print("profit_thresh= ", self.profit_thresh)
         profit = 100.*(pred_profit / self.x_test[:,0]) > profit_thresh
         real_profit = real_profit[profit]
         pred_profit = pred_profit[profit]
         profit_dates = self.test_dates[profit]
     
-        #print("real_profit.shape: ", real_profit.shape)
-        #print("pred_profit.shape: ", pred_profit.shape)
-    
-        #print("x_test= ", x_test[0:10])
-        #print("y_test= ", y_test[0:10])
-        #print("y_pred= ", y_pred[0:10])
         print(self.x_test.shape, real_profit.shape, pred_profit.shape, profit_dates.shape)
-        print("x_test: ", self.x_test[0:10])
         print("test_dates: ", self.test_dates.values[0:10])
         print("Profit_shape: ", profit.shape) # 1D array
         print("real_profit= ", real_profit[0:10])
@@ -209,8 +206,11 @@ class Trading:
         print("total_real_profit= ", total_real_profit)
         print("total_pred_profit= ", total_pred_profit)
 
-	#---------------------------
+        self.total_profit = total_real_profit
+
+    #---------------------------
     def printMetrics(self):
+        
         print()
         print("=================================================")
         print("=========== METRICS =============================")
@@ -234,26 +234,42 @@ class Trading:
 #----------------------------------------------------------------------
 stocks = ["AAPL", "ZEUS"]
 stocks = ["ZEUS"]
-stocks = ["ZBRA"]
 stocks = ["INDY"]
 stocks = ["AAPL"]
+stocks = ["ZBRA"]
+#stocks = ["AAPL", "ZEUS", "ZBRA", "INDY"]
 
 # Keep data up to 2018 for training
-break_date = 20180000
+break_date = 20150701
 folder = "symbols/"
+
+# nb_train_days is decreased by wait_days
 nb_train_days = [1, 25, 50, 100, 200, 400]
-nb_train_days = [1000]
+nb_train_days = [100, 500, 1000]
+nb_train_days = [100]
 
 # nb of days to use for the features
 # the same features are used for each day
 nb_feature_days = 5
 profit_thresh   = 0  # percentage profit below which I do not enter the trade
-wait_days = 150 # how many days in the future to measure the profit 
+wait_days = 1 # how many days in the future to measure the profit 
+
+
+cols = ['sym', 'break_date', 'ndays', 'nb_feature_days', 'wait_days', 'profit_thresh', 'profit']
+df = pd.DataFrame(columns=cols)
+records = []
 
 
 for sym in stocks:
-    for ndays in nb_train_days:
-        trade = Trading(folder, break_date, -ndays, nb_feature_days, wait_days, profit_thresh)
+  for ndays in nb_train_days:
+    #for wait_days in [1, 5, 10, 20]:
+    for wait_days in [5]:
+        # profit_thresh is in dollars
+        trade = Trading(folder, break_date, ndays, nb_feature_days, wait_days, profit_thresh)
         trade.getTrainTest(sym)
         trade.processStock()
-        quit()
+        records.append([sym, break_date, ndays, nb_feature_days, wait_days, profit_thresh, trade.total_profit])
+
+dfnew = pd.DataFrame(records, columns=cols)
+df = pd.concat([df, dfnew])
+print(df)
