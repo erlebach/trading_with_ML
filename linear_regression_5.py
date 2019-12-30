@@ -40,6 +40,7 @@ from sklearn.feature_selection import f_regression, mutual_info_regression, f_re
 # The date is in the format integer yyyymmdd, month and date count from zero
 
 class Trading:
+	#---------------------------
     def __init__(self, folder, break_date, nb_train_days, nb_feature_days, wait_days, profit_thresh):
         self.folder = folder
         self.break_date = break_date
@@ -50,6 +51,7 @@ class Trading:
         pass
 
 # This routine is different for each experiment
+	#---------------------------
     def getTrainTest(self, stock_sym):
         # wait_days: how many days in the future to wait before measuring profit: [1,-]
         df = pd.read_csv(self.folder+stock_sym + ".txt", index_col=0)
@@ -141,53 +143,31 @@ class Trading:
     
         # What is the first column? The number of features? 
         # If so, I must do a transpose on the data
-        #print("x_train, y_train: ", x_train.shape, y_train.shape)
-        #print("x_test, y_test: ", x_test.shape, y_test.shape)
         regr.fit(self.x_train, self.y_train)
     
         # Make predictions using the testing set
-        #print("x_test: ", x_test.shape)
-        y_pred = regr.predict(self.x_test) #.reshape(-1)
-    
-        nb_features_per_day = self.x_train.shape[-1] / self.nb_feature_days
-        print("shape: ", self.x_train.shape)
-        print("nb_features_per_day= ", nb_features_per_day)
-    
+        self.y_pred = regr.predict(self.x_test) #.reshape(-1)
     
         # The coefficients
-        print('Coefficients: \n', regr.coef_)
-        print('Intercept: \n', regr.intercept_)
+        #print('Coefficients: \n', regr.coef_)
+        #print('Intercept: \n', regr.intercept_)
     
         # The mean squared error
         # make sure that y_test and y_pred have same shape)
         # https://scikit-learn.org/stable/modules/feature_selection.html
-        #print("x_test, y_test, y_pred: ", x_test.shape, y_test.shape, y_pred.shape)
-        print()
-        print("=================================================")
-        print("=========== METRICS =============================")
-        print("Features (put in Pandas df): ", self.feature_names)
-        print('Mean squared error: %.2f' % mean_squared_error(self.y_test, y_pred))
-        print("Explained variance score: ", explained_variance_score(self.y_test, y_pred))
-        mi = mutual_info_regression(self.x_train, self.y_train)
-        mi = mi / np.max(mi)
-        print("Mutual Information: ", mi)
-        fr, pval = f_regression(self.x_train, self.y_train, center=True)  # center?
-        #fr = fr / np.max(fr)
-        print("f_regression: " , fr)
-        print("pval: " , pval)
-        print("R2 score: ", r2_score(self.y_test, y_pred))
-        print("=========== END METRICS =========================")
-        print("=================================================")
-        print()
-    
-        u.plotPredVsRealPrice(self.sym, self.x_test[:,0], self.y_test, y_pred)
-    
+
+        self.printMetrics()
+        u.plotPredVsRealPrice(self.sym, self.x_test[:,0], self.y_test, self.y_pred)
+        self.computeProfit()
+
+	#---------------------------
+    def computeProfit(self):
         print("x_test.shape= ", self.x_test.shape)
         print("y_test.shape= ", self.y_test.shape)
 
         real_profit = self.y_test - self.x_test[:,0]
         print("real_profit.shape: ", real_profit.shape)
-        pred_profit = y_pred - self.x_test[:,0]
+        pred_profit = self.y_pred - self.x_test[:,0]
         print("pred_profit.shape: ", pred_profit.shape)
     
         # Plot outputs
@@ -228,6 +208,28 @@ class Trading:
         print("***** count only the days where pred_profit > 0 ****")
         print("total_real_profit= ", total_real_profit)
         print("total_pred_profit= ", total_pred_profit)
+
+	#---------------------------
+    def printMetrics(self):
+        print()
+        print("=================================================")
+        print("=========== METRICS =============================")
+        print("Features (put in Pandas df): ", self.feature_names)
+        print('Mean squared error: %.2f' % mean_squared_error(self.y_test, self.y_pred))
+        print("Explained variance score: ", explained_variance_score(self.y_test, self.y_pred))
+        mi = mutual_info_regression(self.x_train, self.y_train)
+        mi = mi / np.max(mi)
+        print("Mutual Information: ", mi)
+        fr, pval = f_regression(self.x_train, self.y_train, center=True)  # center?
+        #fr = fr / np.max(fr)
+        print("f_regression: " , fr)
+        print("pval: " , pval)
+        print("R2 score: ", r2_score(self.y_test, self.y_pred))
+        print("=========== END METRICS =========================")
+        print("=================================================")
+        print()
+    
+
 
 #----------------------------------------------------------------------
 stocks = ["AAPL", "ZEUS"]
