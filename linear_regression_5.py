@@ -59,7 +59,10 @@ class Trading:
 
         break_date_record = df.loc[self.break_date]
         iloc_break_date = df.index.get_loc(self.break_date)
-        rec = df.iloc[iloc_break_date-self.nb_train_days]
+
+        # subtract nb_feature days to add to the training set, since each 
+        # feature set is wait_days worth of data
+        rec = df.iloc[iloc_break_date-self.nb_train_days-nb_feature_days]
         min_date = int(rec.name)
 
         # parenthesis and & are required for compound conditional
@@ -87,7 +90,10 @@ class Trading:
         cols = ['c','o','l','h','vol']   # cleans up code, and avoids repetition
         cols = ['c']   # cleans up code, and avoids repetition
         cols = ['c','o','l','h']   # cleans up code, and avoids repetition
-        #cols = ['c', 'vol']   # cleans up code, and avoids repetition
+        cols = ['c', 'vol']   # cleans up code, and avoids repetition
+
+        train_df = train_df[cols]
+        test_df  = test_df[cols]
 
         # days:  -2       -1          0
         #             yesterday     today
@@ -96,6 +102,72 @@ class Trading:
         # wait_days = 3
         # Possible training sets: [0, 1, 2] -> 5, [1, 2, 3] -> 6, [n-4, n-3, n-2] -> n-3
 
+        # Need a better way to set up the columns. 
+        # Instead of extracting values, we will work with pandas
+
+        # Step 1: Add columns to the dataframe with the additional required features 
+        # Step 2: thin out the days at which the features are needed (optional)
+        # Step 3: Take wait_days into account before extracting the data
+
+        # Assume nb_feature_days is nb_feature_days
+        # Final df cols:  day[0], day[-1], ..., day[1-nb_feature_days]
+        # Each day: closing price and volume
+        # cols:  'c0', 'vol0', 'c1', 'c2'
+        # day[0]                 : rows[nb_feature_days-1 : -1]
+        # day[1]                 : rows[nb_feature_days-2 : -2]
+        # day[2]                 : rows[nb_feature_days-3 : -3]
+        # day[nb_feature_days-1] : rows[0 : -nb_feature_days]
+
+        wait_days = 1
+        train_day_d = []
+        test_day_d  = []
+        for i in range(0, nb_feature_days):
+            j = nb_feature_days - 1 - i
+            day = train_df.iloc[nb_feature_days-1-j : -1-j-wait_days]
+            day = day.reset_index()  # 'date' becomes a column
+            if i > 0: day.drop(['date'], inplace=True, axis=1)
+            if i > 0: day.columns = [c + str(i) for c in day.columns]
+            train_day_d.append( day )
+
+            day = test_df.iloc[nb_feature_days-1-j : -1-j-wait_days]
+            day = day.reset_index()  # 'date' becomes a column
+            if i > 0: day.drop(['date'], inplace=True, axis=1)
+            if i > 0: day.columns = [c + str(i) for c in day.columns]
+            test_day_d.append( day )  
+
+        # concat does a join on the index or specificed column. So reset_index was applied
+        train_df = pd.concat(train_day_d, axis=1)
+        test_df  = pd.concat(test_day_d,  axis=1)
+
+        # Remove all date columns except the first (column 1)
+        print(train_df.head(5))
+        print(test_df.head(5))
+        quit()
+
+        # Volume is sometimes zero. Must impute its value. Use mean value over 3 days prior and three days following. How to do this/ 
+
+        print(train_df.columns)
+        self.x_train = train_df.values
+        print("train_df.shape= ", train_df.shape)
+        self.y_train = train_df.iloc[wait_days:,0].values
+        self.y_train_a = train_df.loc[wait_days:,'c'].values
+
+        self.y_train = train_df.iloc[0:5:,:].values
+        self.y_train_a = train_df.loc[0:5:,:].values
+
+        print(self.y_train[0:5])
+        print()
+        print(self.y_train_a[0:5])
+        quit()
+        print("x_train.shape: ", self.x_train.shape)
+        print("y_train.shape: ", self.y_train.shape)
+        self.train_dates = train_df.index.values
+        self.x_test  = test_df.values[0:200] # 200 test values
+        self.test_dates = test_df.index.values
+
+        # MISSING: self.y_train and self.y_test
+
+        """
         # Formula valid for any value of feature_days
         lst = []
         for n in range(nb_feature_days):  # [0,1,2]
@@ -108,6 +180,10 @@ class Trading:
         # Training Label: Predict closing price the next day
         self.y_train = train_df['c'].values[nb_feature_days-1+wait_days:]
         self.train_dates = train_df.index.values[nb_feature_days-1:-wait_days]
+        print(self.x_train[0][0:3])
+        print(self.train_dates[0:3])  # WRONG!!
+        quit()
+        """
     
         """
         # Manual creation of formula
@@ -153,7 +229,11 @@ class Trading:
     
         # What is the first column? The number of features? 
         # If so, I must do a transpose on the data
+        print(self.x_train.shape, self.y_train.shape)
         regr.fit(self.x_train, self.y_train)
+        print(self.x_train[0][0:3])
+        print(self.train_dates[0:3])
+        quit()
     
         # Make predictions using the testing set
         self.y_pred = regr.predict(self.x_test) #.reshape(-1)
@@ -246,7 +326,7 @@ folder = "symbols/"
 # nb_train_days is decreased by wait_days
 nb_train_days = [1, 25, 50, 100, 200, 400]
 nb_train_days = [100, 500, 1000]
-nb_train_days = [100]
+nb_train_days = [200]
 
 # nb of days to use for the features
 # the same features are used for each day
