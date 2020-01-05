@@ -22,7 +22,7 @@ def func(n=5000):
     x /= n
     y = x**2
     # added noise
-    y = np.sin(80*x)*np.exp(-3*x) + np.cos(100*x)*np.exp(.3*x) + 0.00*np.random.random(n).reshape(-1,1)
+    y = np.sin(200*x)*np.exp(-3*x) + np.cos(180*x)*np.exp(.3*x) + 0.00*np.random.random(n).reshape(-1,1)
     #y1 = 0.*np.sin(20*x)*np.exp(-3*x)
 
     # Random numbers
@@ -31,6 +31,17 @@ def func(n=5000):
     #print("y= ", y[0:10])
     #print("y1= ", y1[0:10]); #quit()
     return np.hstack([x, y])
+
+def stock_func(sym='AAPL', n=1000):
+    file = "symbols/" + sym + ".txt"
+    df = pd.read_csv(file).iloc[-1500:] # last 1500 trading days
+    x = [i for i in range(df.shape[0])]
+    x = np.asarray(x, dtype='int')
+    #x /= x.max()
+    dates = df['date'].values
+    df['x'] = x
+    #print(df[['x', 'date','c']])
+    return df[['x', 'date','c']].values, dates
 
 #----------------------------------------------------------------------
 class Trading:
@@ -47,9 +58,9 @@ class Trading:
         self.sym = stock_sym # <<<<<<
         n = 1000
         data = func(n)
-        print("data: ", data.shape); 
-        print("data: ", data)
-        #quit()
+
+        # return data columns (x, data, closing price) + a column of dates (yyyymmdd)
+        data, dates = stock_func(stock_sym, n)
 
         train_day_d = []
         test_day_d  = []
@@ -61,50 +72,72 @@ class Trading:
         print("wait_days= ",  wait_days)
 
         for i in range(0, nb_feature_days):
-            # I want current date to be the first column
-            j = nb_feature_days - 1 - i    # <<<< ERROR IN ORIGINAL PROGRAM. 
-            j = i
-            if (j == 0): 
-                x   = data[nb_feature_days-1-j : -j-wait_days , 0]
-            day = data[nb_feature_days-1-j : -j-wait_days , 1]
-            print("day: ", day.shape)
+            # I want current date to always be the first column
+            # extract x (0,1,...n) and date columns for the current training day
+            if (i == 0): 
+                x     = data[nb_feature_days-1-i : -i-wait_days , 0]
+                dates = data[nb_feature_days-1-i : -i-wait_days , 1]
+            day = data[nb_feature_days-1-i : -i-wait_days , 2]
             train_day_d.append( day )
 
         print("x: ", x.shape)
         print("x= ", x); 
         label = data[nb_feature_days-1+wait_days :, -1 ]
         print("label shape: ", label.shape)
-        #print("label: ", label)
 
-        data = np.asarray(train_day_d).T
+        # One column for each of nb_feature_days features
+        data = np.asarray(train_day_d).T  
+
         print("data= ", data.shape)
         print("x= ", x.shape)
         print("label= ", label.shape)
         print("data= \n", data)
         
-        data = np.hstack((x.reshape(-1,1), data, label.reshape(-1,1)))  # all args of hstack have same # dimensions
-        print("data= ", data)
-        # Data columns: x, features, label
+        print("before hstack")
+        print("data= ", data.shape)
+        print("data= ", data.shape)
+        print("label= ", label.shape)
+        # prefix "x" column, postfix "label" column
+        data = np.hstack((x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)))  # all args of hstack have same # dimensions
+        print("after hstack")
+        print("data= ", data.shape)
+        print("data= ", data.shape)
+        # Data columns: x (0), dates (1), features (2), label (3)
 
-        # Separate into training and testing datasets
-        nb_train = int(0.2 * label.shape[0])
+        # Separate "data" into training and testing datasets
+        nb_train = int(0.9 * label.shape[0])
         train_data = data[0:nb_train]
         test_data  = data[nb_train:]
-        train, train_label = train_data[:, 1:-1], train_data[:, -1]
-        test, test_label   = test_data[:, 1:-1],  test_data[:, -1]
+        #print("test_data: \n", test_data); quit()
+        train, train_label = train_data[:, 2:-1], train_data[:, -1]
+        test, test_label   = test_data[:, 2:-1],  test_data[:, -1]
 
-        #print(train.shape, train_label.shape)
-        #print(train, train_label)
+        print("train_data: ", train_data.shape)
+        print("test_data: ", test_data.shape)
+        print("train, train_label: ", train.shape, train_label.shape)
+        print("test, test_label: ", test.shape, test_label.shape)
+        print("Train:\n", train[0:5,:])  # contains only dates
+        print("Train label:\n", train_label[0:5])  # contains closing prices
+        print("Test:\n", test[0:5,:])  # contains only dates
+        print("Test label:\n", test_label[0:5])  # contains closing prices
         #print(test, test_label)
-        #print(test.shape, test_label.shape)
+        #quit()
 
         self.x_train = train
         self.y_train = train_label
-        self.train_dates = train_data[:,0] # real scalars
+        self.train_dates = train_data[:,1] # real scalars
+        self.train_index = train_data[:,0] # real scalars
 
         self.x_test  = test
         self.y_test  = test_label
-        self.test_dates = test_data[:,0]  # real scalars
+        self.test_dates = test_data[:,1]  # real scalars
+        self.test_index = test_data[:,0]  # real scalars
+
+        print("train_dates: ", self.train_dates)
+        print("train_index: ", self.train_index)
+        print("test_dates: ", self.test_dates)
+        print("test_index: ", self.test_index)
+        #quit()
 
         n_features = self.x_train.shape[-1] 
 
@@ -126,26 +159,70 @@ class Trading:
         plt.subplots(3,3)
         plt.subplot(3,3,1)
         plt.scatter(self.x_train[:,0], self.x_train[:,1], s=.1)
+        plt.title("%s, train: today vs yesterday" % self.sym, fontsize=6)
+        plt.xlabel("close")
+        plt.ylabel("close")
 
         plt.subplot(3,3,2)
         plt.scatter(self.x_train[:,0], self.y_train[:], s=.1)
+        plt.title("%s, today vs label" % self.sym, fontsize=8)
+        plt.xlabel("close")
+        plt.ylabel("close")
 
         plt.subplot(3,3,3)
         plt.scatter(self.x_test[:,0], self.y_pred[:], s=.1)
+        plt.title("%s, today vs label" % self.sym, fontsize=8)
+        plt.xlabel("close")
+        plt.ylabel("close")
 
         plt.subplot(3,3,4)
-        plt.scatter(self.train_dates[:], self.x_train[:,0], s=.1)
+        plt.scatter(self.train_index[:], self.x_train[:,0], s=.1)
+        plt.title("Training")
+        plt.ylabel("close")
+        plt.xlabel("date")
 
         plt.subplot(3,3,5)
-        plt.scatter(self.y_pred, self.y_test, s=.1)
+        plt.scatter(self.test_index[:], self.x_test[:,0], s=.1)
+        plt.title("Testing")
+        plt.ylabel("close")
+        plt.xlabel("date")
+
+        plt.subplot(3,3,6)
+        plt.scatter(self.y_test, self.y_pred, s=.1)
+        plt.title("test pred vs test labels", fontsize=8)
+        plt.xlabel("pred close")
+        plt.ylabel("test close")
+
+        real_profit = self.y_test[:] - self.x_test[:,0]
+        pred_profit = self.y_pred[:] - self.x_test[:,0]
+
+        print("y_test: ", self.y_test[0:10])
+        print("x_test: ", self.x_test[0:10])
+        print("real_profit: ", real_profit[0:10])
+        print("pred_profit: ", pred_profit[0:10])
+        print("real_profit min/max: ", real_profit.min(), real_profit.max())
+        print("pred_profit min/max: ", pred_profit.min(), pred_profit.max())
+
+        plt.subplot(3,3,7)
+        plt.scatter(real_profit, pred_profit, s=.1)
+        plt.hlines(0, real_profit.min(), real_profit.max(), colors='red', lw=1)
+        plt.vlines(0, pred_profit.min(), pred_profit.max(), colors='red', lw=1)
+        plt.title("pred vs real profit", fontsize=8)
+        plt.ylabel("pred profit")
+        plt.xlabel("real profit")
 
         plt.tight_layout()
         plt.savefig("plot.pdf")
         print("nb_train: ", self.x_train.shape[0])
         print("nb_test: ", self.x_test.shape[0])
+        print("r2_score= ", self.r2_score)
         quit()
     
 #----------------------------------------------------------------------
+stocks = ["ZBRA"]
+stocks = ["MU"]
+stocks = ["IBM"]
+stocks = ["DDD"]
 stocks = ["AAPL"]
 
 # Keep data up to 2018 for training
@@ -157,9 +234,9 @@ nb_train_days = [200]
 
 # nb of days to use for the features
 # the same features are used for each day
-nb_feature_days_list = [2,5,10]
+nb_feature_days_list = [5,5,10]
 profit_thresh   = 0  # percentage profit below which I do not enter the trade
-wait_days_list = [10] # how many days in the future to measure the profit 
+wait_days_list = [5] # how many days in the future to measure the profit 
 
 cols = ['sym', 'break_date', 'ndays', 
         'nb_feature_days', 'wait_days', 
