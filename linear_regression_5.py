@@ -337,6 +337,7 @@ stocks = ["ZBRA"]
 stocks = ["SENEB"]
 stocks = ["INDY"]
 stocks = ["AAPL"]
+stocks = ["AAPL", "INDY", "ZEUS", "ZBRA", "ZION", "YORW", "PEGA", "PCYO", "XOMA", "VIAB", "VECO", "WIRE", "MU", "AMD"]
 #stocks = ["AAPL", "ZEUS", "ZBRA", "INDY"]
 
 # Keep data up to 2018 for training
