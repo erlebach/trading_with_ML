@@ -55,6 +55,17 @@ class Trading:
         pass
 
 # This routine is different for each experiment
+	def stock_func(self, sym='AAPL', n=1000):
+	    # symbols/ contains 8000+ symbols from AMEX, NYSE, NASDAQ 
+    	file = "symbols/" + sym + ".txt"
+    	# number of symbols to keep
+    	nb_keep = 1500  
+    	df = pd.read_csv(file).iloc[-nb_keep:] 
+    	df['x'] = df.reset_index().index.values # 0, 1, 2, ...
+    	dates = df['date'].values
+        return df[['x', 'date','c']].values
+
+#----------------------------------------------------------------------
     #---------------------------
     def getTrainTest(self, stock_sym):
         # wait_days: how many days in the future to wait before measuring profit: [1,-]
