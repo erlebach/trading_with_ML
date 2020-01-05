@@ -105,7 +105,7 @@ class Trading:
         # Data columns: x (0), dates (1), features (2), label (3)
 
         # Separate "data" into training and testing datasets
-        nb_train = int(0.9 * label.shape[0])
+        nb_train = int(0.7 * label.shape[0])
         train_data = data[0:nb_train]
         test_data  = data[nb_train:]
         #print("test_data: \n", test_data); quit()
@@ -222,8 +222,8 @@ class Trading:
 stocks = ["ZBRA"]
 stocks = ["MU"]
 stocks = ["IBM"]
-stocks = ["DDD"]
 stocks = ["AAPL"]
+stocks = ["DDD"]
 
 # Keep data up to 2018 for training
 
@@ -234,7 +234,7 @@ nb_train_days = [200]
 
 # nb of days to use for the features
 # the same features are used for each day
-nb_feature_days_list = [5,5,10]
+nb_feature_days_list = [4,5,10]
 profit_thresh   = 0  # percentage profit below which I do not enter the trade
 wait_days_list = [10] # how many days in the future to measure the profit 
 

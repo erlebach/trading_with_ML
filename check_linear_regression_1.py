@@ -239,8 +239,8 @@ class Trading:
 stocks = ["ZBRA"]
 stocks = ["IBM"]
 stocks = ["AAPL"]
-stocks = ["DDD"]
 stocks = ["MU"]
+stocks = ["DDD"]
 
 # Keep data up to 2018 for training
 
