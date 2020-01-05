@@ -236,7 +236,7 @@ nb_train_days = [200]
 # the same features are used for each day
 nb_feature_days_list = [5,5,10]
 profit_thresh   = 0  # percentage profit below which I do not enter the trade
-wait_days_list = [5] # how many days in the future to measure the profit 
+wait_days_list = [10] # how many days in the future to measure the profit 
 
 cols = ['sym', 'break_date', 'ndays', 
         'nb_feature_days', 'wait_days', 
