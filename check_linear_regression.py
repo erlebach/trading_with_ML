@@ -17,6 +17,7 @@ from sklearn.feature_selection import f_regression, mutual_info_regression, f_re
 
 import seaborn as sb
 
+#-----------------------
 def func(n=5000):
     x = np.linspace(0., n, n).reshape(-1,1)  # make into 2D array: one column)
     x /= n
@@ -32,16 +33,17 @@ def func(n=5000):
     #print("y1= ", y1[0:10]); #quit()
     return np.hstack([x, y])
 
+#-----------------------
 def stock_func(sym='AAPL', n=1000):
     file = "symbols/" + sym + ".txt"
-    df = pd.read_csv(file).iloc[-1500:] # last 1500 trading days
-    x = [i for i in range(df.shape[0])]
-    x = np.asarray(x, dtype='int')
-    #x /= x.max()
+    # number of symbols to keep
+    nb_keep = 1500  
+    df = pd.read_csv(file).iloc[-nb_keep:] 
+    df['x'] = df.reset_index().index.values # 0, 1, 2, ...
     dates = df['date'].values
-    df['x'] = x
-    #print(df[['x', 'date','c']])
-    return df[['x', 'date','c']].values, dates
+    # Make sure 'c' is the first features listed after 'date'
+    #return df[['x', 'date','c', 'vol']].values
+    return df[['x', 'date','c']].values
 
 #----------------------------------------------------------------------
 class Trading:
@@ -60,7 +62,8 @@ class Trading:
         data = func(n)
 
         # return data columns (x, data, closing price) + a column of dates (yyyymmdd)
-        data, dates = stock_func(stock_sym, n)
+        data = stock_func(stock_sym, n)
+        nb_features_per_day = data.shape[1] - 2  # 'c', or ['c', 'vol'], etc.
 
         train_day_d = []
         test_day_d  = []
@@ -77,16 +80,28 @@ class Trading:
             if (i == 0): 
                 x     = data[nb_feature_days-1-i : -i-wait_days , 0]
                 dates = data[nb_feature_days-1-i : -i-wait_days , 1]
-            day = data[nb_feature_days-1-i : -i-wait_days , 2]
+            day = data[nb_feature_days-1-i : -i-wait_days , 2:]
+            #print("day.shape: ", day[0:3,:]); quit()
             train_day_d.append( day )
 
         print("x: ", x.shape)
         print("x= ", x); 
-        label = data[nb_feature_days-1+wait_days :, -1 ]
+        print("data.shape= ", data[0:2].shape); 
+        print("data= ", data[0:2]); 
+        label = data[nb_feature_days-1+wait_days :, -nb_features_per_day ]
         print("label shape: ", label.shape)
+        print("label : ", label)
 
         # One column for each of nb_feature_days features
-        data = np.asarray(train_day_d).T  
+        print("data.shape: " , len(train_day_d), train_day_d[0].shape); 
+        #data = np.asarray(train_day_d).T  
+        data = np.hstack(train_day_d)
+        #print("label: ", label); quit()
+        data = np.hstack([x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)])
+        print("data.shape: " , data.shape); 
+        print("data: " , data[0,:]); 
+        #print("data: " , data[1,:]); quit()
+        #data = np.hstack((x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)))  # all args of hstack have same # dimensions
 
         print("data= ", data.shape)
         print("x= ", x.shape)
@@ -98,7 +113,9 @@ class Trading:
         print("data= ", data.shape)
         print("label= ", label.shape)
         # prefix "x" column, postfix "label" column
-        data = np.hstack((x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)))  # all args of hstack have same # dimensions
+        nfpd = nb_features_per_day
+        #print(data.shape); quit()
+        #data = np.hstack((x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)))  # all args of hstack have same # dimensions
         print("after hstack")
         print("data= ", data.shape)
         print("data= ", data.shape)
@@ -108,7 +125,7 @@ class Trading:
         nb_train = int(0.7 * label.shape[0])
         train_data = data[0:nb_train]
         test_data  = data[nb_train:]
-        #print("test_data: \n", test_data); quit()
+        #print(train_data[0]); quit()
         train, train_label = train_data[:, 2:-1], train_data[:, -1]
         test, test_label   = test_data[:, 2:-1],  test_data[:, -1]
 
@@ -220,9 +237,9 @@ class Trading:
     
 #----------------------------------------------------------------------
 stocks = ["ZBRA"]
-stocks = ["MU"]
 stocks = ["IBM"]
 stocks = ["AAPL"]
+stocks = ["MU"]
 stocks = ["DDD"]
 
 # Keep data up to 2018 for training
