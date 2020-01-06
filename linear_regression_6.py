@@ -251,22 +251,11 @@ class Trading:
     
         # Create linear regression object
         regr = linear_model.LinearRegression()
-    
-        # What is the first column? The number of features? 
-        # If so, I must do a transpose on the data
-        #print("x_train, y_train shapes: ", self.x_train.shape, self.y_train.shape)
         regr.fit(self.x_train, self.y_train)
-        #print("x_train: ", self.x_train.shape)
-        #print("train_dates: ", self.train_dates[0:3])
     
         # Make predictions using the testing set
-        #print("x_test.shape: ", self.x_test.shape)
         self.y_pred = regr.predict(self.x_test) #.reshape(-1)
-        #quit()
     
-        # The coefficients
-        #print('Coefficients: \n', regr.coef_)
-        #print('Intercept: \n', regr.intercept_)
     
         # The mean squared error
         # make sure that y_test and y_pred have same shape)
@@ -276,7 +265,8 @@ class Trading:
 
         #self.printMetrics()
         u.plotPredVsRealPrice(self.sym, self.x_test[:,0], self.y_test, self.y_pred)
-        self.computeProfit()
+        #self.computeProfit()
+        u.plotStockData(self)
 
     #---------------------------
     def computeProfit(self):
