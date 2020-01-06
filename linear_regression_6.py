@@ -52,37 +52,93 @@ class Trading:
         self.nb_feature_days = nb_feature_days
         self.wait_days = wait_days
         self.profit_thresh = profit_thresh
-        pass
+        # string to attach to file names
+        self.string = "ntd=%d,nfd=%d,wd=%d" % (nb_train_days, nb_feature_days, wait_days)
 
-# This routine is different for each experiment
-	def stock_func(self, sym='AAPL', n=1000):
-	    # symbols/ contains 8000+ symbols from AMEX, NYSE, NASDAQ 
-    	file = "symbols/" + sym + ".txt"
-    	# number of symbols to keep
-    	nb_keep = 1500  
-    	df = pd.read_csv(file).iloc[-nb_keep:] 
-    	df['x'] = df.reset_index().index.values # 0, 1, 2, ...
-    	dates = df['date'].values
-        return df[['x', 'date','c']].values
-
+#------------------------------------
+    # This routine is different for each experiment
+    # I should also test during period 2006 - 2010
+    def stock_func(self, sym='AAPL'):
+        file = "symbols/" + sym + ".txt"
+        # number of symbols to keep
+        nb_keep = 1500    # last 1500 values (6 years)
+        df = pd.read_csv(file).iloc[-nb_keep:] 
+        df['x'] = df.reset_index().index.values # 0, 1, 2, ...
+        dates = df['date'].values
+        # Make sure 'c' is the first features listed after 'date'
+        return df[['x', 'date','c','vol']].values
+    
 #----------------------------------------------------------------------
-    #---------------------------
     def getTrainTest(self, stock_sym):
         # wait_days: how many days in the future to wait before measuring profit: [1,-]
-        df = pd.read_csv(self.folder+stock_sym + ".txt", index_col=0)
-        self.sym = stock_sym # <<<<<<
 
-        break_date_record = df.loc[self.break_date]
-        iloc_break_date = df.index.get_loc(self.break_date)
+        #df = pd.read_csv(self.folder+stock_sym + ".txt", index_col=0)
+        self.sym = stock_sym # <<<<<<
+        data = self.stock_func(stock_sym) 
+
+        # Subtract 2 ('x' and 'date' columns)
+        nb_features_per_day = data.shape[1] - 2  # 'c', or ['c', 'vol'], etc.
+
+        train_day_d = []
+        test_day_d  = []
+        label = []
+        nb_feature_days = self.nb_feature_days
+        wait_days = self.wait_days
+
+        #print("nb_feature_days= ",  self.nb_feature_days)
+        #print("wait_days= ",  wait_days)
+
+        for i in range(0, nb_feature_days):
+            # I want current date to always be the first column
+            # extract x (0,1,...n) and date columns for the current training day
+            if (i == 0): 
+                x     = data[nb_feature_days-1-i : -i-wait_days , 0]
+                dates = data[nb_feature_days-1-i : -i-wait_days , 1]
+            day = data[nb_feature_days-1-i : -i-wait_days , 2:]
+            train_day_d.append( day )
+        
+        label = data[nb_feature_days-1+wait_days :, -nb_features_per_day ]
+
+        data = np.hstack(train_day_d)
+        data = np.hstack([x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)])
+
+        # Separate "data" into training and testing datasets
+        training_frac = 0.7
+        nb_train = int(training_frac * label.shape[0])
+        train_data = data[0:nb_train]
+        test_data  = data[nb_train:]
+        train, train_label = train_data[:, 2:-1], train_data[:, -1]
+        test, test_label   = test_data[:, 2:-1],  test_data[:, -1]
+
+        self.x_train = train
+        self.y_train = train_label
+        self.train_dates = train_data[:,1] # real scalars
+        self.train_index = train_data[:,0] # real scalars
+
+        self.x_test  = test
+        self.y_test  = test_label
+        self.test_dates = test_data[:,1]  # real scalars
+        self.test_index = test_data[:,0]  # real scalars
+        self.nb_test_days = self.test_dates.shape[0]
+
+        n_features = self.x_train.shape[-1] 
+
+        return True
+
+
+        # One column for each of nb_feature_days features
+
+        #break_date_record = df.loc[self.break_date]
+        #iloc_break_date = df.index.get_loc(self.break_date)
 
         # subtract nb_feature days to add to the training set, since each 
         # feature set is wait_days worth of data
-        rec = df.iloc[iloc_break_date-self.nb_train_days-nb_feature_days]
-        min_date = int(rec.name)
+        #rec = df.iloc[iloc_break_date-self.nb_train_days-nb_feature_days]
+        #min_date = int(rec.name)
 
         # parenthesis and & are required for compound conditional
-        train_df = df.loc[(df.index <= break_date) & (df.index >= min_date)]
-        test_df  = df.loc[df.index  >  break_date]
+        #train_df = df.loc[(df.index <= break_date) & (df.index >= min_date)]
+        #test_df  = df.loc[df.index  >  break_date]
 
         # training set based on close prices
         # labels are based on the close prices on the next day
@@ -96,8 +152,8 @@ class Trading:
         #cols = ['c','o']   # cleans up code, and avoids repetition
         cols = ['c','o','l','h','vol']   # cleans up code, and avoids repetition
         cols = ['c','o','l','h']   # cleans up code, and avoids repetition
-        cols = ['c', 'vol']   # cleans up code, and avoids repetition
         cols = ['c']   # cleans up code, and avoids repetition
+        cols = ['c', 'vol']   # cleans up code, and avoids repetition
 
         # reject the stock if the minimum 20-day average volume is less than 200,000 (over the testing
         # and training period)
@@ -264,15 +320,15 @@ class Trading:
         self.r2_score = r2_score(self.y_test, self.y_pred)
 
         #self.printMetrics()
-        u.plotPredVsRealPrice(self.sym, self.x_test[:,0], self.y_test, self.y_pred)
-        #self.computeProfit()
+        #u.plotPredVsRealPrice(self.sym, self.x_test[:,0], self.y_test, self.y_pred)
+        self.computeProfit()
         u.plotStockData(self)
 
     #---------------------------
     def computeProfit(self):
         real_profit = self.y_test - self.x_test[:,0]
         pred_profit = self.y_pred - self.x_test[:,0]
-    
+
         # Plot outputs
         u.plotRealVsPredProfit(self.sym, real_profit, pred_profit)
     
@@ -289,6 +345,7 @@ class Trading:
         real_profit = real_profit[profit]
         pred_profit = pred_profit[profit]
         profit_dates = self.test_dates[profit]
+
     
         print("shapes: x_test, real_profit, prd_profit, profit_dates")
         print(self.x_test.shape, real_profit.shape, pred_profit.shape, profit_dates.shape)
@@ -359,6 +416,7 @@ nb_train_days = [200]
 # nb of days to use for the features
 # the same features are used for each day
 nb_feature_days_list = [1,5,10]
+nb_feature_days_list = [1,2]
 profit_thresh   = 0  # percentage profit below which I do not enter the trade
 wait_days_list = [1,5,10,20,40] # how many days in the future to measure the profit 
 wait_days_list = [1,5] # how many days in the future to measure the profit 
@@ -374,7 +432,6 @@ records = []
 
 for sym in stocks:
     for ndays in nb_train_days:
-        #for wait_days in [1, 5, 10, 20]:
         for wait_days in wait_days_list:
             for nb_feature_days in nb_feature_days_list:
                 # profit_thresh is in dollars
@@ -392,7 +449,5 @@ for sym in stocks:
                                 profit_thresh, trade.total_pred_profit, trade.total_real_profit, 
                                 trade.nb_train_days, trade.nb_test_days, trade.r2_score])
 
-dfnew = pd.DataFrame(records, columns=cols) # 1st way
+dfnew = pd.DataFrame(records, columns=cols) 
 print(dfnew)
-#df = pd.concat([df, dfnew])  # 2nd day, same result
-#print(df)

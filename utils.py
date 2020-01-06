@@ -44,6 +44,7 @@ def plotRealVsPredProfit(sym, real_profit, pred_profit):
     plt.savefig(sym + "_real_pred_profit.pdf")
 #----------------------------------------------------------------------
 # Plot of stock characteristics
+# trade is a class instance
 def plotStockData(trade):
     plt.subplots(3,3)
     plt.subplot(3,3,1)
@@ -101,7 +102,7 @@ def plotStockData(trade):
     plt.xlabel("real profit")
 
     plt.tight_layout()
-    plt.savefig("plot_" + trade.sym + ".pdf")
+    plt.savefig("plot_%s,%s.pdf" % (trade.sym, trade.string))
     print("nb_train: ", trade.x_train.shape[0])
     print("nb_test: ", trade.x_test.shape[0])
     print("r2_score= ", trade.r2_score)

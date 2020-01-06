@@ -113,7 +113,6 @@ class Trading:
         print("data= ", data.shape)
         print("label= ", label.shape)
         # prefix "x" column, postfix "label" column
-        nfpd = nb_features_per_day
         #print(data.shape); quit()
         #data = np.hstack((x.reshape(-1,1), dates.reshape(-1,1), data, label.reshape(-1,1)))  # all args of hstack have same # dimensions
         print("after hstack")
